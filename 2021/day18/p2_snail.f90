@@ -15,32 +15,33 @@ program mn
     type(nodeptr) :: chars(100)
   end type
 
-  integer, parameter :: MAXSIZE = 100
   integer :: fd, ios
   character(len=20) :: inputFile = "input.txt"
   character(len=20) :: countNumbersChar
   integer :: countNumbers
-  character(len=100) :: num(MAXSIZE)
+  character(len=100), allocatable :: num(:)
   integer :: i, j, k
   type(node), pointer :: root1
   type(node), pointer :: root2
   type(nodeptr) :: roottmp1
   type(nodeptr) :: roottmp2
-  integer :: magnitude(MAXSIZE, MAXSIZE)
-
-  magnitude = 0
+  integer, allocatable :: magnitude(:,:)
 
   call get_command_argument(1, inputFile)
   call get_command_argument(2, countNumbersChar)
   read(countNumbersChar,*) countNumbers
   print *, inputFile, countNumbers
+  allocate(num(countNumbers))
+  allocate(magnitude(countNumbers,countNumbers))
+  magnitude = 0
+
   open(newunit=fd, file=inputFile, iostat=ios)
-  do i=1,MAXSIZE
+  do i=1,countNumbers
     read(fd,'(A)') num(i)
   end do
 
-  do i=1, MAXSIZE
-    do j=1, MAXSIZE
+  do i=1, countNumbers
+    do j=1, countNumbers
       if (i .eq. j) then
         cycle
       end if
@@ -60,98 +61,65 @@ program mn
 contains
   subroutine doAllExplodes(n)
     type(node), pointer :: n
-    do while (explodeOrSplit1(n))
-      !print *, "Another Explosion round"
-      !call printTree(n)
+    do while (doLeftMostExplode(n))
     end do
   end subroutine
+
   subroutine callAction(n)
     type(node), pointer :: n
     call doAllExplodes(n)
-    do while (explodeOrSplit2(n))
-      !print *, "Another round of split"
-      !call printTree(n)
+    do while (doLeftMostSplit(n))
     call doAllExplodes(n)
     end do
   end subroutine
-  recursive function explodeOrSplit1(n) result(rval)
+
+  recursive function doLeftMostExplode(n) result(rval)
     type(node), pointer :: n
     logical :: rval
     if ((associated(n%left) .eqv. .false.) .and. (associated(n%right) .eqv. .false.)) then
         rval = .false.
     else if (n%depth .ge. 4) then
-        !print *, "Found node to explode ", n%left%val, n%right%val
         call explodeNode(n)
         rval = .true.
     else
-      rval = explodeOrSplit1(n%left)
+      rval = doLeftMostExplode(n%left)
       if (rval .eqv. .false.) then
-        rval = explodeOrSplit1(n%right)
+        rval = doLeftMostExplode(n%right)
       end if
     end if
   end function
- recursive function explodeOrSplit2(n) result(rval)
+
+ recursive function doLeftMostSplit(n) result(rval)
     type(node), pointer :: n
     logical :: rval
     if ((associated(n%left) .eqv. .false.) .and. (associated(n%right) .eqv. .false.)) then
       if (n%val .gt. 9) then
-        !print *, "Found node to split ", n%val
         call splitNode(n)
         rval = .true.
       else
         rval = .false.
       end if
     else
-      rval = explodeOrSplit2(n%left)
+      rval = doLeftMostSplit(n%left)
       if (rval .eqv. .false.) then
-        rval = explodeOrSplit2(n%right)
+        rval = doLeftMostSplit(n%right)
       end if
     end if
   end function
  
-
-  recursive subroutine splitIfAny(n)
-    type(node), pointer :: n
-    if ((associated(n%left) .eqv. .false.) .and. (associated(n%right) .eqv. .false.)) then
-      return
-    else
-      call splitIfAny(n%left)
-      if (n%val .gt. 9) then
-        !print *, "Found node to split ", n%val
-        call splitNode(n)
-      end if
-      call splitIfAny(n%right)
-    end if
-  end subroutine
-  recursive subroutine explodeIfAny(n)
-    type(node), pointer :: n
-    if ((associated(n%left) .eqv. .false.) .and. (associated(n%right) .eqv. .false.)) then
-      return
-    else if (n%depth .ge. 5) then
-        call explodeNode(n)
-    else
-      call explodeIfAny(n%left)
-      call explodeIfAny(n%right)
-    end if
-  end subroutine
   recursive subroutine printTree(n)
     type(node), pointer :: n
     if ((associated(n%left) .eqv. .false.) .and. (associated(n%right) .eqv. .false.)) then
-      !write(*,'(A1)',advance='no') '('
-      !write(*,'(I1)',advance='no') n%depth
-      !write(*,'(A1)',advance='no') ')'
       write(*,'(I2)',advance='no') n%val
     else
       write(*,'(A1)',advance='no') '['
-      !write(*,'(A1)',advance='no') '('
-      !write(*,'(I1)',advance='no') n%depth
-      !write(*,'(A1)',advance='no') ')'
       call printTree(n%left)
       write(*,'(A1)',advance='no') ','
       call printTree(n%right)
       write(*,'(A1)',advance='no') ']'
     endif
   end subroutine
+
   recursive subroutine incrementDepth(n)
     type(node), pointer :: n
     if (associated(n) .eqv. .false.) then
@@ -161,6 +129,7 @@ contains
     call incrementDepth(n%left)
     call incrementDepth(n%right)
   end subroutine
+
   function createNodeLR(l,r)
     type(nodeptr) :: l, r, createNodeLR
     allocate(createNodeLR%ptr)
@@ -172,12 +141,14 @@ contains
     call incrementDepth(l%ptr)
     call incrementDepth(r%ptr)
   end function
+
   function createNode(v)
     integer :: v
     type(nodeptr) :: createNode
     allocate(createNode%ptr)
     createNode%ptr%val = v
   end function
+
   function inorderPredecessor(n)
     type(node), pointer :: n
     type(node), pointer :: inorderPredecessor
@@ -206,6 +177,7 @@ contains
 
     inorderPredecessor => cur
   end function
+
   function inorderSuccessor(n)
     type(node), pointer :: n
     type(node), pointer :: inorderSuccessor
@@ -234,6 +206,7 @@ contains
 
     inorderSuccessor => cur
   end function
+
   subroutine explodeNode(n)
     type(node), pointer :: n
     type(node), pointer :: pred
@@ -241,16 +214,11 @@ contains
     pred => inorderPredecessor(n)
     succ => inorderSuccessor(n)
 
-    !print *, "Found node for exploding at depth = ", n%depth, n%left%val, n%right%val
     if(associated(pred)) then
-      !print *, "Pred found with val = ", pred%val
       pred%val = pred%val + n%left%val
-      !print *, "Incrementing left to ", pred%val
     end if
     if(associated(succ)) then
-      !print *, "Succ found with val = ", succ%val
       succ%val = succ%val + n%right%val
-      !print *, "Incrementing right to ", succ%val
     end if
 
     n%val = 0
@@ -259,6 +227,7 @@ contains
     n%left => NULL()
     n%right => NULL()
   end subroutine
+
   subroutine splitNode(n)
     type(node), pointer :: n
     type(node), pointer :: newL
@@ -274,13 +243,12 @@ contains
     newL%val = FLOOR(FLOAT(n%val)/FLOAT(2))
     newR%val = CEILING(FLOAT(n%val)/FLOAT(2))
     n%val = -1
-    !n%depth = n%depth+1
     newL%parent => n
     newR%parent => n
     newL%depth = n%depth+1
     newR%depth = n%depth+1
-    !print *, "Finish splitting ", n%parent%depth, n%depth, newL%depth, newR%depth
   end subroutine
+
   function createTree(c)
     character(len=*) :: c
     type(node), pointer :: createTree
@@ -307,6 +275,7 @@ contains
     end if
     createTree => mystack%chars(mystack%top)%ptr
   end function
+
   recursive function computeMagnitude(n) result(comp)
     type(node), pointer :: n
     integer(kind=8) :: comp
